@@ -312,14 +312,42 @@ cd /opt/codearts2api && sudo python3 -m venv .venv && sudo .venv/bin/pip install
 sudo cp config.example.json config.json
 sudo tee /opt/codearts2api/.env >/dev/null <<'EOF'
 CA2A_API_KEY=换成你自己的随机密钥
+# 二选一：永久 AK/SK，或先跑一次 `python login.py` 生成 auths/ 下的 OAuth 凭证
 CODEARTS_AK=...
 CODEARTS_SK=...
 EOF
 sudo chmod 600 /opt/codearts2api/.env
-sudo cp deploy/codearts2api.service /etc/systemd/system/
+
+# 写 unit（本仓库不含部署脚本，直接贴）
+sudo tee /etc/systemd/system/codearts2api.service >/dev/null <<'EOF'
+[Unit]
+Description=CodeArts2API (OpenAI-compatible proxy for Huawei Cloud CodeArts)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+WorkingDirectory=/opt/codearts2api
+Environment=PYTHONUNBUFFERED=1
+EnvironmentFile=/opt/codearts2api/.env
+ExecStart=/opt/codearts2api/.venv/bin/python /opt/codearts2api/server.py
+Restart=always
+RestartSec=5
+TimeoutStopSec=20
+NoNewPrivileges=true
+PrivateTmp=true
+
+[Install]
+WantedBy=multi-user.target
+EOF
+
 sudo systemctl daemon-reload && sudo systemctl enable --now codearts2api
 journalctl -u codearts2api -f
 ```
+
+> ⚠️ **改完代码重新部署时用 `systemctl restart`，不要用 `enable --now`。**
+> `enable --now` 的语义是「开机自启 + 没在跑才启动」——服务**已经在跑**时它什么都
+> 不做，于是文件全换成新的了、进程还是旧代码，而日志看起来完全正常。
 
 ### 8.2 Docker
 
@@ -350,32 +378,66 @@ schtasks /create /tn CodeArtsBenefit /tr "python C:\...\benefit.py claim" /sc da
 
 ---
 
-## 9. 测试
+## 9. 自检与踩坑记录
+
+本仓库不含测试目录，下面是几条不依赖测试框架的冒烟检查。
 
 ```bash
-python -m compileall .                 # 1. 语法检查
-python tests/run_all.py                # 2. 262 个用例（9 个模块）
-python tools/acceptance.py             # 3. SPEC 第 5 节验收（起真实服务 + 真 HTTP）
-python tools/mock_upstream_e2e.py      # 4. 端到端：真实 HTTP + 假上游 SSE（含流式 usage）
+python -m compileall .                                  # 1. 语法检查
+
+# 2. 起服务后（默认 127.0.0.1:8787）
+curl -s -o /dev/null -w '存活探针  %{http_code}\n' http://127.0.0.1:8787/healthz
+curl -s -o /dev/null -w '面板      %{http_code}\n' http://127.0.0.1:8787/
+curl -s -o /dev/null -w '无key鉴权 %{http_code}\n' http://127.0.0.1:8787/v1/models
+curl -s -H "Authorization: Bearer $CA2A_API_KEY" \
+     http://127.0.0.1:8787/v1/models | head -c 300       # 3. 模型列表
+
+# 4. 真发一次对话
+curl -s -X POST http://127.0.0.1:8787/v1/chat/completions \
+  -H "Authorization: Bearer $CA2A_API_KEY" -H 'Content-Type: application/json' \
+  -d '{"model":"GLM-5.2","messages":[{"role":"user","content":"你好"}]}'
 ```
 
-测试不依赖网络：假传输与假上游响应都在 `tests/helpers.py` 里。
+预期：`/healthz` 与面板 `200`、无 key 的 `/v1/models` 是 `401`。
+（`/healthz` 不鉴权，供容器健康检查与反代存活探测用，Dockerfile 的
+`HEALTHCHECK` 就是打它。）
 
-| 模块 | 用例 | 覆盖内容 |
-|---|---|---|
-| `tests/test_signing.py` | 14 | SDK-HMAC-SHA256 规范（与 Go `signer.go` 独立复算比对）、CanonicalURI 尾斜杠、头排序、双通道头部集合冻结、STS 头 |
-| `tests/test_checkin.py` | 26 | 签到状态机四分支（`CONFIRMED`/`CONSUMED`/`CLAIMED`/`ELIGIBLE`/`""`/未知）、活动起止时间校验、信封业务码、opengw 免费额度 |
-| `tests/test_pool.py` | 29 | 轮转、冷却、风控指数退避与升级禁用、并发上限、refresh_token 轮转落盘、终态 vs 瞬时错误、签到故障隔离 |
-| `tests/test_models.py` | 39 | 三路模型发现合并、福利标记取或、`is_benefit_model` 三级判定、可用性 30 分钟 TTL、能力问题 vs 账号故障、缓存格式 |
-| `tests/test_scheduler.py` | 15 | 看门狗 tick 顺序、自动签到开关、禁用/冷却账号处理、单账号异常隔离、可用性探测节拍 |
-| `tests/test_context.py` | 18 | 会话 ID 推导（请求头 / body / 首条 user 消息）、历史增长稳定性、账号黏性路由 |
-| `tests/test_tool_choice.py` | 36 | `tool_choice` 解析与收窄、不存在/重复定义 → 400、错误分类与处罚策略 |
-| `tests/test_oauth.py` | 42 | PKCE S256、DPoP ES256 私钥持久化与校验、授权链接参数、令牌端点、refresh 终态错误、双回调、会话匹配、回调地址 SSRF 校验 |
-| `tests/test_api.py` | 43 | 鉴权（无 key → 401）、无账号时 `/v1/models` 空列表、面板内容与零 CDN、SSE 聚合/tool_calls/reasoning_content/finish_reason、benefit 流补 finish_reason、流式 usage、管理 API |
+管理接口（都带同一个 key）：
 
-`tools/acceptance.py` 会用真实 socket 起服务并逐条核对 SPEC 第 5 节（34 项），
-`tools/mock_upstream_e2e.py` 会把上游换成假 SSE 后走完整 HTTP 链路（18 项），
-包括「usage 帧出现在 `[DONE]` 之前」这类只有真流式才能验证的点。
+| 接口 | 作用 |
+|---|---|
+| `GET  /admin/api/overview` | 账号池 / 模型 / 调度状态总览 |
+| `POST /admin/api/credits` | 校验账号（真实上游请求，顺带刷额度） |
+| `POST /admin/api/checkin` | 签到（积分活动 + 免费额度） |
+| `POST /admin/api/quota` | **只刷可用额度**（面板「刷新」按钮走这个） |
+| `POST /admin/api/keepalive` | 只续期凭证 |
+| `POST /admin/api/oauth/start` → `poll` / `import-callback` | WebUI 用的 OAuth 会话 |
+
+### 改代码前值得先看的几个坑（都实测过）
+
+- **`role: "developer"`** —— DSH 0.1.7 起用它承载系统提示词，本上游不认：
+  `InferHub.001001044.400 Message role cannot empty`。已在
+  `upstream.normalize_message_roles()` 里**改名成 `system` 而不是丢弃** ——
+  丢弃会静默丢掉整份系统提示词，模型行为变差且完全没有报错。
+- **`max_tokens` 硬上限 65536** —— 超过**不报错**，而是返回 `HTTP 200` + **内容全空**
+  （二分实测：65536 正常、66048 起 content 与 reasoning 全为空，GLM 与 deepseek
+  系列阈值一致）。而上游 `/v1/models` 自报的 `max_tokens`（384000 / 393216 /
+  131072）**全都超过这个上限**，照抄它就会让客户端每次都收到「成功但什么都没有」。
+  `upstream.clamp_max_tokens()` 按实测上限夹取，可用 `CA2A_MAX_OUTPUT_TOKENS`
+  覆盖（设 0 = 关闭夹取）。
+- **InferHub 4xx 是客户端错误，不能算账号故障** —— 否则一个客户端发错字段就能把
+  整池账号冷却、网关回 503。另外**判定顺序上风控优先于参数错误**：该上游的 405
+  是风控（unusual activity），被「参数错误」分支吞掉比误冷却更危险。
+- **DPoP 签名必须用 `Prehashed`** —— `ec.ECDSA(hashes.SHA256())` 的语义是「先对
+  传入数据做 SHA256 再签名」，传**预计算摘要**会变成签 `SHA256(SHA256(input))`，
+  服务端一律拒绝，而报错伪装成 `InvalidDPoPHeader` / 「密钥不对」。
+  这个 bug **只做「自己签自己验」的 round-trip 抓不到**（两边同错照样通过），
+  必须像服务端那样用 `utils.Prehashed(hashes.SHA256())` 独立验签。
+- **原子写要用唯一临时名** —— 固定 `path + ".tmp"` 在并发保存时会互相踩，
+  Windows 上表现为 `os.replace` 的 `PermissionError [WinError 32]`
+  （POSIX 下则是静默互相覆盖内容，更隐蔽）。见 `app/atomic.py`。
+- **`max_tokens` 别给太小** —— 本上游的模型（GLM-5.x 等）是恒思考模型，
+  `max_tokens=300` 这种小值会被思考全吃光、正文为空。建议 ≥ 2048。
 
 ---
 
@@ -393,17 +455,16 @@ codearts2api-py/
 │   ├── dpop.py               # DPoP ES256 密钥与证明
 │   ├── oauth.py              # OAuth2 PKCE + DPoP（三种登录方式）
 │   ├── store.py              # 凭证 / 池状态 / 会话映射持久化
-│   ├── pool.py               # 账号池：轮转/冷却/风控/并发/续期
-│   ├── checkin.py            # 签到：积分活动状态机 + opengw 免费额度
+│   ├── atomic.py             # 原子写（唯一临时名 + 重试）
+│   ├── pool.py               # 账号池：轮转/冷却/风控/并发/续期/额度
+│   ├── checkin.py            # 签到：积分活动状态机 + opengw 免费额度 + 额度查询
 │   ├── models.py             # 模型发现 + 可用性探测 + 限时福利领取
 │   ├── upstream.py           # 聊天客户端 + SSE 聚合/流式 + 错误分类
 │   ├── scheduler.py          # 看门狗：续期 + 保活 + 自动签到 + 探测
 │   ├── server.py             # Flask：OpenAI 路由 + 管理 API + WebUI
 │   └── web/panel.html        # WebUI（单文件，内嵌 CSS/JS，零 CDN）
-├── tests/                    # 262 个用例（9 个模块）
-├── tools/                    # 验收脚本（SPEC 第 5 节）与 mock 上游端到端自测
 ├── config.example.json
-├── Dockerfile / docker-compose.yml / deploy/codearts2api.service
+├── Dockerfile / docker-compose.yml
 └── README.md
 ```
 
@@ -411,15 +472,21 @@ codearts2api-py/
 
 ## 11. 已知限制
 
-- **未在真实机顶盒上做端到端验证**：本实现的所有测试都在本地用假上游完成；
-  真实上游的签到/福利接口行为以 SPEC 与 Go 源码为准，首次上线请先手工点一次
-  「校验账号」和「全员签到」确认。
+- **`max_tokens` 上限 65536 是实测的**，但上游随时可能改；改了就调整
+  `CA2A_MAX_OUTPUT_TOKENS`（或改 `upstream.MAX_OUTPUT_TOKENS`）。
+  上游自报的 `max_tokens` 字段**不可信**（见第 9 节）。
+- 上游没有「积分余额」接口（`/v1/ops/balance` 等一律 404）。能查到的「还剩多少」
+  只有 opengw 的 `/api/v1/user/tokens/balance`，面板上显示的可用额度来自它，
+  单位是 token 而不是活动积分。
 - WebUI 授权会话存在内存里，**服务重启会让未完成的授权失效**（需重新发起）。
 - 永久 AK/SK 账号的 `/admin/api/accounts/delete` 会被拒绝（它没有凭证文件），
   请从 `.env` 移除后重启。
 - 流式 usage 在上游未返回时是**按字符数估算**的，不是精确 token 计数。
 - `max_concurrent` 默认 2：上游单账号并发会话上限实测只有 3 个且槽位释放很慢
   （>15s），调高容易撞 `TM.00001041`。
+- 恒思考模型（GLM-5.x 等）**关不掉思考**：实测 `reasoning_effort` 无效，
+  只有 `thinking:{"type":"disabled"}` / `enable_thinking:false` 才生效；
+  另外上游按平台拒绝非法 role，客户端别自己发明角色名。
 - 使用 Flask 自带开发服务器（与基线一致）。生产环境建议前置 nginx 或改用
   waitress/gunicorn，注意 SSE 需要关闭响应缓冲（`X-Accel-Buffering: no` 已设置）。
 
