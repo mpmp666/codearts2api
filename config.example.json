@@ -1,0 +1,105 @@
+{
+  // 复制成 config.json 再改。支持 // 与 /* */ 注释（服务读取时会自动剥离）。
+  //
+  // 这里只放**行为开关**；密钥（AK/SK、API Key）一律走 .env / 环境变量，
+  // 避免把凭证提交进 git。
+
+  // --- 监听 ---
+  "listen_host": "127.0.0.1",
+  "listen_port": 8787,
+
+  // --- 鉴权（也可以只写 .env 的 CA2A_API_KEY；env 优先） ---
+  "api_key": "",
+
+  // --- 凭证来源 ---
+  // auto   = auths/*.json（OAuth）+ .env 的 AK/SK 都用（默认）
+  // apikey = 只用 .env 的永久 AK/SK（基线行为）
+  // oauth  = 只用 auths/*.json
+  "mode": "auto",
+  "auth_dir": "./auths",
+  "state_file": "./data/state.json",
+  "chats_file": "./data/chats.json",
+  "models_cache": "./models-cache.json",
+
+  // --- 模型 ---
+  "default_model": "glm-5.2",
+  // 单次请求最多轮换几个账号；并发满的账号被跳过且不计入轮数
+  "max_rotate": 3,
+  // 单账号并发上限（0=不限）。上游单账号并发会话上限实测只有 3 个且释放很慢，
+  // 默认 2 留余量。
+  "max_concurrent": 2,
+
+  // --- 冷却 ---
+  "cooldown": {
+    // 连续错误多少次后冷却
+    "err_threshold": 3,
+    // 5xx 重试耗尽后的冷却时长（SPEC 默认 300s）
+    "err_cooldown": "300s",
+    // 软冷却（备用）
+    "soft_rate": "60s"
+  },
+
+  // --- 风控退避（3012 / 405 unusual activity）---
+  "risk": {
+    // 指数退避基数：第 n 次冷却 = base * 2^(n-1)，上限 max_seconds
+    "base_seconds": 900,
+    "max_seconds": 86400,
+    // 累计多少次升级为禁用（人工恢复）
+    "max_strikes": 4
+  },
+
+  // --- 上游排队 / TPM 限流（429 不冷却，原地等待后重试）---
+  "queue": {
+    "retry_seconds": 10,
+    "max_attempts": 30
+  },
+
+  // --- 看门狗：续期 + 保活 + 自动签到 ---
+  "watch": {
+    "enabled": true,
+    "poll_minutes": 30,
+    // 到期前多久主动刷新
+    "refresh_skew_minutes": 30,
+    // 保活轻量请求间隔
+    "keepalive_interval_minutes": 15,
+    // 多久没有活动算「需要保活」
+    "keepalive_window": "10m"
+  },
+
+  // --- 签到 ---
+  // 每日签到 + 新用户积分（调度器启动时立刻执行一次，之后每 poll_minutes 一次）
+  "credits_auto_claim": true,
+  // 发现模型时自动领取限时福利（幂等）。关闭后福利模型仍会出现在 /v1/models，
+  // 但调用必然失败（上游返回 benefit not found）。
+  "benefit_auto_claim": true,
+
+  // --- 模型可用性探测 ---
+  "availability": {
+    // 探测结论缓存时长（SPEC 要求 30 分钟）
+    "ttl_minutes": 30,
+    "probe_interval_minutes": 15,
+    // 账号至少空闲这么久才允许探测（不与真实请求抢上游并发槽位）
+    "probe_idle_before_minutes": 10,
+    // 两次探测之间留出的会话槽位释放时间
+    "probe_gap_seconds": 20,
+    "probe_timeout_seconds": 45
+  },
+
+  // --- OAuth 登录 ---
+  // 留空则用默认 codearts-agent；已有账号记录的 client_id 优先
+  // （refresh_token 与 client_id 绑定，混用会让老账号刷新失败）
+  "login_client_id": "",
+  // 远端部署时把回调指向公网地址（必须显式写端口，如 https://example.com:443/codearts）
+  "oauth_callback_host": "",
+  // WebUI 授权会话有效期（秒）
+  "oauth_session_ttl": 900,
+
+  // --- 上游 ---
+  "upstream": {
+    "timeout_seconds": 120
+  },
+
+  // 是否要求启动时已有账号。默认 false：允许「先启动、再用 WebUI 授权登录」。
+  // 无人值守部署（Docker/systemd）想强制「必须有账号」时设为 true。
+  "require_accounts": false
+}

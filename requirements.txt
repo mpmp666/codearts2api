@@ -1,3 +1,9 @@
+# Python 3.11+ 运行依赖。刻意保持最小集合：
+#   flask          —— HTTP 服务（基线就在用，保持技术栈一致）
+#   requests       —— 上游 HTTP 客户端（基线就在用）
+#   python-dotenv  —— 读 .env（基线就在用）
+#   cryptography   —— 仅用于 DPoP 的 ES256 签名（OAuth 登录新增，无纯标准库替代）
 flask>=3.0.0
 requests>=2.31.0
 python-dotenv>=1.0.0
+cryptography>=42.0.0

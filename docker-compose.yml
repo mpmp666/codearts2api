@@ -1,0 +1,41 @@
+# 用法：
+#   cp .env.example .env   # 填 CA2A_API_KEY（+ 可选 CODEARTS_AK/SK）
+#   mkdir -p auths data
+#   docker compose up -d --build
+#   # OAuth 登录（容器内执行，凭证落到挂载出来的 auths/）
+#   docker compose exec codearts2api python login.py --print-only
+#
+# 打开 http://127.0.0.1:8787/ 就是 WebUI 控制台。
+services:
+  codearts2api:
+    build: .
+    image: codearts2api-py:latest
+    container_name: codearts2api
+    restart: unless-stopped
+    env_file:
+      - .env
+    environment:
+      # 覆盖 .env 里的监听地址：容器内必须 0.0.0.0
+      CA2A_LISTEN_HOST: "0.0.0.0"
+      CA2A_LISTEN_PORT: "8787"
+    ports:
+      # 只发布到宿主机回环地址，避免直接把代理暴露到内网/公网。
+      # 需要被别的机器访问时再改成 "8787:8787"，并务必确认 CA2A_API_KEY 足够强。
+      - "127.0.0.1:8787:8787"
+    volumes:
+      # OAuth 凭证：容器重建后不用重新登录
+      - ./auths:/app/auths
+      # 池状态 / 会话映射 / 模型缓存
+      - ./data:/app/data
+      # 想改行为开关就取消下面这行的注释（先 cp config.example.json config.json）
+      # - ./config.json:/app/config.json:ro
+    healthcheck:
+      test:
+        - CMD
+        - python
+        - -c
+        - "import urllib.request,sys; sys.exit(0 if urllib.request.urlopen('http://127.0.0.1:8787/healthz', timeout=4).status==200 else 1)"
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 20s

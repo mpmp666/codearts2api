@@ -1,0 +1,23 @@
+# 凭证与状态：绝不能进版本库
+.env
+auths/
+data/
+*.tmp
+
+# 运行时配置（从 config.example.json 复制而来，含个人偏好）
+config.json
+
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+.pytest_cache/
+
+# 注意：models-cache.json **不进** .gitignore —— 基线就把它提交在仓库里，
+# 它同时充当「上游不可达时的兜底模型列表」，删掉会让冷启动少一层保护。
+# 里面的模型名与上下文长度不是敏感信息。
+
+# 日志
+*.log

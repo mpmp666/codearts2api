@@ -1,0 +1,878 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1"/>
+<title>CodeArts2API 控制台</title>
+<style>
+/* 零 CDN：字体只用系统栈，图标用文本/内联 SVG。内网/离线环境必须能完整渲染。 */
+:root{
+  --bg:#0b1020; --bg2:#0e1428; --card:#121a2e; --card2:#16203a;
+  --line:#243149; --text:#e6ecfa; --muted:#8b9ab8; --accent:#4f8cff;
+  --ok:#22c55e; --warn:#f59e0b; --bad:#ef4444; --info:#38bdf8;
+  --radius:12px; --radius-sm:8px;
+  --mono:ui-monospace,SFMono-Regular,Menlo,Consolas,"Liberation Mono",monospace;
+  --sans:system-ui,-apple-system,"Segoe UI",Roboto,"PingFang SC","Microsoft YaHei",sans-serif;
+}
+*{box-sizing:border-box}
+html,body{margin:0;min-height:100%}
+body{
+  background:
+    radial-gradient(900px 460px at 8% -10%, rgba(79,140,255,.18), transparent),
+    radial-gradient(760px 420px at 96% 0%, rgba(56,189,248,.12), transparent),
+    linear-gradient(180deg,var(--bg2),var(--bg));
+  color:var(--text); font:14px/1.6 var(--sans); -webkit-font-smoothing:antialiased;
+}
+a{color:var(--accent)}
+button{font:inherit;cursor:pointer}
+button:focus-visible,input:focus-visible,select:focus-visible,textarea:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+input,select,textarea{font:inherit;color:var(--text)}
+.hidden{display:none!important}
+.wrap{max-width:1220px;margin:0 auto;padding:22px 16px 56px}
+
+/* --- 顶部 --- */
+.top{display:flex;align-items:center;justify-content:space-between;gap:14px;flex-wrap:wrap;margin-bottom:18px}
+.brand{display:flex;align-items:center;gap:12px}
+.logo{width:40px;height:40px;border-radius:12px;display:grid;place-items:center;font-weight:800;
+  font-family:var(--mono);color:#fff;background:linear-gradient(135deg,var(--accent),#2f6fd0);box-shadow:0 6px 18px rgba(79,140,255,.28)}
+.brand h1{margin:0;font-size:19px;font-weight:650;letter-spacing:.2px}
+.brand p{margin:1px 0 0;color:var(--muted);font-size:12px}
+.actions{display:flex;gap:8px;flex-wrap:wrap}
+.btn{border:1px solid var(--line);background:var(--card2);color:var(--text);padding:8px 13px;border-radius:var(--radius-sm);
+  transition:border-color .16s,background .16s,transform .1s}
+.btn:hover{border-color:var(--accent);background:#1b2742}
+.btn:active{transform:translateY(1px)}
+.btn:disabled{opacity:.5;cursor:not-allowed;transform:none}
+.btn.primary{background:linear-gradient(135deg,var(--accent),#2f6fd0);border-color:transparent;color:#fff;font-weight:650}
+.btn.danger{border-color:#5b2330;color:#ffb4c0}
+.btn.danger:hover{background:#3a1720;border-color:var(--bad)}
+.btn.ghost{background:transparent}
+.btn.sm{padding:4px 9px;font-size:12px;border-radius:6px}
+
+/* --- 统计 --- */
+.grid{display:grid;grid-template-columns:repeat(5,1fr);gap:10px;margin-bottom:16px}
+@media (max-width:980px){.grid{grid-template-columns:repeat(3,1fr)}}
+@media (max-width:560px){.grid{grid-template-columns:repeat(2,1fr)}}
+.stat{background:var(--card);border:1px solid var(--line);border-radius:var(--radius);padding:12px 14px}
+.stat .k{color:var(--muted);font-size:12px}
+.stat .v{font-size:24px;font-weight:700;margin-top:4px;font-variant-numeric:tabular-nums;line-height:1.15}
+.stat.ok .v{color:var(--ok)} .stat.warn .v{color:var(--warn)} .stat.bad .v{color:var(--bad)}
+
+/* --- 卡片 --- */
+.card{background:var(--card);border:1px solid var(--line);border-radius:var(--radius);margin-bottom:16px;overflow:hidden}
+.card-h{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:12px 15px;border-bottom:1px solid var(--line);background:rgba(255,255,255,.02)}
+.card-h h2{margin:0;font-size:15px;font-weight:600}
+.card-b{padding:12px 15px}
+.table-scroll{overflow-x:auto}
+table{width:100%;border-collapse:collapse;min-width:860px}
+th,td{padding:10px 9px;border-bottom:1px solid var(--line);text-align:left;vertical-align:top}
+th{color:var(--muted);font-size:11px;font-weight:700;letter-spacing:.5px;text-transform:uppercase;white-space:nowrap}
+tr:last-child td{border-bottom:none}
+tbody tr:hover td{background:rgba(255,255,255,.025)}
+.mono{font-family:var(--mono);font-size:12px}
+.muted{color:var(--muted)}
+.badge{display:inline-flex;align-items:center;gap:6px;padding:2px 9px;border-radius:999px;font-size:11px;font-weight:700;border:1px solid transparent;white-space:nowrap}
+.badge::before{content:"";width:6px;height:6px;border-radius:50%;background:currentColor}
+.badge.ok{background:rgba(34,197,94,.12);color:#4ade80;border-color:rgba(34,197,94,.3)}
+.badge.warn{background:rgba(245,158,11,.12);color:#fbbf24;border-color:rgba(245,158,11,.3)}
+.badge.bad{background:rgba(239,68,68,.12);color:#f87171;border-color:rgba(239,68,68,.3)}
+.badge.info{background:rgba(56,189,248,.12);color:#7dd3fc;border-color:rgba(56,189,248,.3)}
+.row-actions{display:flex;gap:5px;flex-wrap:wrap}
+.chips{display:flex;flex-wrap:wrap;gap:6px}
+.chip{background:var(--card2);border:1px solid var(--line);border-radius:999px;padding:3px 10px;font-size:12px;font-family:var(--mono);color:var(--muted)}
+.chip b{color:var(--info);font-weight:600}
+.empty{padding:24px;text-align:center;color:var(--muted)}
+
+/* --- 表单 --- */
+.field{display:flex;flex-direction:column;gap:6px}
+.field label{font-size:12px;color:var(--muted);font-weight:600}
+input[type=text],input[type=password],input[type=url],select,textarea{
+  background:#0d1424;border:1px solid var(--line);border-radius:var(--radius-sm);padding:9px 11px;width:100%}
+input:focus,select:focus,textarea:focus{border-color:var(--accent)}
+textarea{min-height:90px;resize:vertical;font-family:var(--mono);font-size:13px}
+.row{display:flex;gap:10px;flex-wrap:wrap;align-items:flex-end}
+.row > *{flex:1 1 220px}
+.checkline{display:flex;align-items:center;gap:7px;color:var(--muted);font-size:13px;flex:0 0 auto}
+pre.out{background:#0a1120;border:1px solid var(--line);border-radius:var(--radius-sm);padding:11px;margin:0;
+  max-height:320px;overflow:auto;white-space:pre-wrap;word-break:break-word;font-family:var(--mono);font-size:12.5px;min-height:60px}
+pre.out .err{color:#f87171}
+pre.out .think{color:var(--muted);font-style:italic}
+
+/* --- 登录 --- */
+.login{min-height:100vh;display:grid;place-items:center;padding:24px}
+.login-box{width:min(420px,100%);background:var(--card);border:1px solid var(--line);border-radius:16px;padding:28px;
+  box-shadow:0 18px 48px rgba(0,0,0,.45)}
+.login-box h1{margin:0 0 4px;font-size:21px}
+.login-box p{margin:0 0 18px;color:var(--muted);font-size:13px}
+
+/* --- 弹窗 --- */
+.modal-mask{position:fixed;inset:0;background:rgba(4,8,18,.72);display:flex;align-items:center;justify-content:center;padding:18px;z-index:40}
+.modal{width:min(620px,100%);background:var(--card);border:1px solid var(--line);border-radius:14px;box-shadow:0 20px 60px rgba(0,0,0,.55);
+  max-height:92vh;overflow:auto}
+.modal-h{display:flex;align-items:center;justify-content:space-between;padding:13px 16px;border-bottom:1px solid var(--line)}
+.modal-h h3{margin:0;font-size:16px}
+.modal-b{padding:16px;display:flex;flex-direction:column;gap:13px}
+.modal-f{padding:12px 16px;border-top:1px solid var(--line);display:flex;gap:8px;justify-content:flex-end;flex-wrap:wrap}
+.urlbox{background:#0a1120;border:1px solid var(--line);border-radius:var(--radius-sm);padding:9px 11px;word-break:break-all;
+  font-family:var(--mono);font-size:12px;max-height:130px;overflow:auto;user-select:all}
+.steps{margin:0;padding-left:18px;color:var(--muted);font-size:13px}
+.steps b{color:var(--text)}
+.status-line{min-height:20px;font-size:13px;color:var(--muted)}
+.status-line.ok{color:#4ade80}
+.status-line.err{color:#f87171}
+
+/* --- toast --- */
+.toast{position:fixed;right:16px;bottom:16px;max-width:420px;background:var(--card2);border:1px solid var(--line);
+  color:var(--text);padding:11px 14px;border-radius:var(--radius-sm);box-shadow:0 12px 32px rgba(0,0,0,.5);
+  opacity:0;transform:translateY(8px);transition:.2s;z-index:60;pointer-events:none;font-size:13px}
+.toast.show{opacity:1;transform:none}
+.toast.err{border-color:rgba(239,68,68,.55)}
+.foot{margin-top:6px;color:var(--muted);font-size:12px;display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap}
+@media (prefers-reduced-motion:reduce){*{transition:none!important}}
+</style>
+</head>
+<body>
+
+<!-- 管理登录：页面本身可匿名访问，但任何操作都要 API Key -->
+<div id="loginView" class="login">
+  <div class="login-box">
+    <div class="brand" style="margin-bottom:16px">
+      <div class="logo">CA</div>
+      <div>
+        <h1 style="font-size:18px">CodeArts2API</h1>
+        <p style="margin:0">账号池控制台</p>
+      </div>
+    </div>
+    <div class="field" style="margin-bottom:12px">
+      <label for="apiKeyInput">API Key</label>
+      <input id="apiKeyInput" type="password" placeholder="CA2A_API_KEY" autocomplete="current-password"/>
+    </div>
+    <button class="btn primary" id="btnLogin" style="width:100%">进入控制台</button>
+    <p class="muted" style="margin-top:12px;font-size:12px">
+      密钥只保存在本机 localStorage，不会上传到任何第三方。
+    </p>
+  </div>
+</div>
+
+<div id="panelView" class="hidden">
+  <div class="wrap">
+    <div class="top">
+      <div class="brand">
+        <div class="logo">CA</div>
+        <div>
+          <h1>CodeArts2API 控制台</h1>
+          <p id="subTitle">账号池 · 签到及新手福利 · 模型 · 对话测试</p>
+        </div>
+      </div>
+      <div class="actions">
+        <button class="btn primary" id="btnOauth">＋ 授权登录</button>
+        <button class="btn" id="btnRefresh">刷新</button>
+        <button class="btn" id="btnCredits">校验账号</button>
+        <button class="btn" id="btnCheckin">全员签到</button>
+        <button class="btn" id="btnKeepalive">保活 Token</button>
+        <button class="btn" id="btnReload">重载 auths</button>
+        <button class="btn ghost" id="btnLogout">退出</button>
+      </div>
+    </div>
+
+    <div class="grid">
+      <div class="stat"><div class="k">账号总数</div><div class="v" id="sTotal">—</div></div>
+      <div class="stat ok"><div class="k">健康</div><div class="v" id="sHealthy">—</div></div>
+      <div class="stat warn"><div class="k">冷却中</div><div class="v" id="sCooling">—</div></div>
+      <div class="stat bad"><div class="k">已禁用</div><div class="v" id="sDisabled">—</div></div>
+      <div class="stat"><div class="k">自动签到 / 保活</div><div class="v" id="sCredits">—</div></div>
+      <div class="stat"><div class="k">可用额度（全部账号）</div><div class="v" id="sQuota">—</div></div>
+    </div>
+
+    <div class="card">
+      <div class="card-h">
+        <h2>账号池</h2>
+        <span class="muted mono" id="accountHint"></span>
+      </div>
+      <div class="table-scroll">
+        <table>
+          <thead>
+            <tr>
+              <th>账号</th>
+              <th>可用额度</th>
+              <th>签到 / 新手福利</th>
+              <th>状态</th>
+              <th>原因 / 冷却至</th>
+              <th>操作</th>
+            </tr>
+          </thead>
+          <tbody id="accountRows"></tbody>
+        </table>
+      </div>
+      <div id="accountEmpty" class="empty">暂无账号，请点「＋ 授权登录」添加，或在 .env 配置 CODEARTS_AK/SK。</div>
+    </div>
+
+    <div class="card">
+      <div class="card-h">
+        <h2>可用模型</h2>
+        <span class="muted">仅列出真实可用的模型（探测结果缓存 30 分钟）</span>
+      </div>
+      <div class="card-b">
+        <div class="chips" id="modelList"><span class="muted">加载中…</span></div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-h">
+        <h2>对话测试</h2>
+        <span class="muted">直接调用 /v1/chat/completions</span>
+      </div>
+      <div class="card-b" style="display:flex;flex-direction:column;gap:10px">
+        <div class="row">
+          <div class="field" style="flex:0 0 260px">
+            <label for="testModel">模型</label>
+            <select id="testModel"></select>
+          </div>
+          <label class="checkline" for="testStream">
+            <input type="checkbox" id="testStream" checked/> 流式
+          </label>
+          <div class="field" style="flex:0 0 120px">
+            <label>&nbsp;</label>
+            <button class="btn primary" id="btnTest">发送</button>
+          </div>
+        </div>
+        <div class="field">
+          <label for="testPrompt">提问</label>
+          <textarea id="testPrompt" placeholder="你好，简单介绍一下你自己"></textarea>
+        </div>
+        <pre class="out" id="testOutput">（输出会显示在这里）</pre>
+      </div>
+    </div>
+
+    <div class="foot">
+      <span>OpenAI Base URL：<span class="mono" id="baseUrl"></span></span>
+      <span>签到与保活是两件事：签到领每日积分，保活 Token 只续期凭证。</span>
+    </div>
+  </div>
+</div>
+
+<!-- OAuth 弹窗 -->
+<div id="oauthModal" class="modal-mask hidden">
+  <div class="modal">
+    <div class="modal-h">
+      <h3>授权登录（华为云 CodeArts）</h3>
+      <button class="btn sm ghost" id="oauthModalClose">关闭</button>
+    </div>
+    <div class="modal-b">
+      <ol class="steps">
+        <li>点「发起授权」生成链接</li>
+        <li>在浏览器打开链接并用华为云账号登录</li>
+        <li>登录后浏览器会跳向 <b>127.0.0.1</b>；<b>若打不开（服务器部署），把地址栏里的完整地址复制下来</b></li>
+        <li>粘贴到下面的输入框并点「提交回调地址」，然后按提示继续</li>
+        <li>也可以直接点「我已授权」等待自动检测</li>
+      </ol>
+      <div class="field">
+        <label>授权链接</label>
+        <div class="urlbox" id="oauthUrl">（尚未生成）</div>
+      </div>
+      <div class="row">
+        <button class="btn" id="btnOauthStart">发起授权</button>
+        <button class="btn" id="btnOauthCopy">复制链接</button>
+        <button class="btn" id="btnOauthOpen">打开授权页</button>
+        <button class="btn" id="btnOauthPoll">我已授权</button>
+      </div>
+      <div class="field">
+        <label for="oauthCallbackUrl">粘贴浏览器地址栏里的回调地址</label>
+        <input id="oauthCallbackUrl" type="url" placeholder="http://127.0.0.1:8787/oauth/callback?secret=...&redirect=..." autocomplete="off"/>
+      </div>
+      <div class="row">
+        <button class="btn" id="btnOauthImport">提交回调地址</button>
+      </div>
+      <div class="field hidden" id="oauthNextWrap">
+        <label>继续打开下面的地址完成授权</label>
+        <div class="urlbox" id="oauthNextUrl"></div>
+        <div><button class="btn" id="btnOauthOpenNext">打开下一步地址</button></div>
+      </div>
+      <div class="status-line" id="oauthStatus"></div>
+    </div>
+    <div class="modal-f">
+      <span class="muted" id="oauthSessionHint"></span>
+    </div>
+  </div>
+</div>
+
+<div id="toast" class="toast"></div>
+
+<script>
+(function () {
+  "use strict";
+
+  var KEY_STORE = "ca2a_api_key";
+  var $ = function (id) { return document.getElementById(id); };
+  var state = { key: "", sessionId: "", pollTimer: null, overview: null };
+
+  function escapeHtml(value) {
+    return String(value == null ? "" : value)
+      .replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;")
+      .replace(/"/g, "&quot;").replace(/'/g, "&#39;");
+  }
+
+  var toastTimer = null;
+  function toast(message, isError) {
+    var el = $("toast");
+    el.textContent = message;
+    el.className = "toast show" + (isError ? " err" : "");
+    if (toastTimer) { clearTimeout(toastTimer); }
+    toastTimer = setTimeout(function () { el.className = "toast"; }, 2800);
+  }
+
+  // --- 统一 API 调用：401 一律回到登录视图，避免半登录状态下反复报错 ---
+  function api(path, options) {
+    options = options || {};
+    var headers = { "Authorization": "Bearer " + state.key };
+    if (options.body !== undefined && options.body !== null) {
+      headers["Content-Type"] = "application/json";
+    }
+    return fetch(path, {
+      method: options.method || "GET",
+      headers: headers,
+      body: options.body === undefined || options.body === null ? undefined : options.body
+    }).then(function (response) {
+      if (response.status === 401) {
+        clearKey();
+        showLogin();
+        throw new Error("API Key 无效或已过期");
+      }
+      return response.text().then(function (text) {
+        var data = null;
+        try { data = text ? JSON.parse(text) : {}; } catch (e) { data = { raw: text }; }
+        if (!response.ok) {
+          var message = (data && data.message) ||
+            (data && data.error && data.error.message) ||
+            ("HTTP " + response.status);
+          throw new Error(message);
+        }
+        return data;
+      });
+    });
+  }
+
+  function saveKey(key) { try { localStorage.setItem(KEY_STORE, key); } catch (e) {} }
+  function readKey() { try { return localStorage.getItem(KEY_STORE) || ""; } catch (e) { return ""; } }
+  function clearKey() { try { localStorage.removeItem(KEY_STORE); } catch (e) {} state.key = ""; }
+
+  function showLogin() {
+    stopPolling();
+    $("loginView").classList.remove("hidden");
+    $("panelView").classList.add("hidden");
+  }
+  function showPanel() {
+    $("loginView").classList.add("hidden");
+    $("panelView").classList.remove("hidden");
+  }
+
+  // --- 渲染 ---
+
+  function renderStats(stats, watch) {
+    $("sTotal").textContent = stats.total;
+    $("sHealthy").textContent = stats.healthy;
+    $("sCooling").textContent = stats.cooling;
+    $("sDisabled").textContent = stats.disabled;
+    var auto = [];
+    if (watch && watch.enabled) {
+      if (watch.credits_auto_claim) { auto.push("签到"); }
+      auto.push("保活");
+      $("sCredits").textContent = auto.join("+");
+      $("sCredits").title = "每 " + (watch.poll_minutes || 30) + " 分钟轮询一次";
+    } else {
+      $("sCredits").textContent = "关闭";
+    }
+  }
+
+  function statusBadge(account) {
+    if (account.disabled) {
+      return '<span class="badge bad">已禁用</span>';
+    }
+    if (account.cooling) {
+      var seconds = account.cool_remaining_seconds || 0;
+      var text = seconds >= 60 ? Math.ceil(seconds / 60) + " 分钟" : seconds + " 秒";
+      var kind = account.cool_kind === "risk" ? "风控" : (account.cool_kind === "err" ? "错误" : "软冷却");
+      return '<span class="badge warn">冷却中 · ' + escapeHtml(kind) + ' ' + text + '</span>';
+    }
+    return '<span class="badge ok">健康</span>';
+  }
+
+  function checkinCell(account) {
+    var info = account.checkin;
+    if (!info) { return '<span class="muted">—</span>'; }
+    var color = info.ok ? "var(--ok)" : "var(--bad)";
+    var when = info.checked_at ? String(info.checked_at).replace("T", " ").slice(0, 19) : "";
+    return '<span style="color:' + color + '">' + escapeHtml(info.message || "") + '</span>' +
+      (when ? '<div class="muted mono" style="font-size:11px">' + escapeHtml(when) + '</div>' : "");
+  }
+
+  function fmtInt(n) {
+    if (n === null || n === undefined || isNaN(n)) { return "—"; }
+    return Number(n).toLocaleString("zh-CN");
+  }
+
+  // 可用额度：来自 opengw /api/v1/user/tokens/balance 的 total_balance / total_quota。
+  // 上游没有「积分余额」接口（/v1/ops/balance 等一律 404），能查到的「还剩多少」
+  // 只有这一个；签到领取的每日额度最终体现在这里。
+  function quotaCell(account) {
+    var q = account.quota;
+    if (!q || (!q.total_quota && !q.total_balance)) {
+      var err = q && q.error ? '<div class="muted" style="font-size:11px">' +
+        escapeHtml(String(q.error).slice(0, 60)) + '</div>' : "";
+      return '<span class="muted">—</span>' + err;
+    }
+    var pct = q.percent_left;
+    var color = pct === null ? "var(--fg)" :
+      (pct > 50 ? "var(--ok)" : (pct > 10 ? "var(--warn)" : "var(--bad)"));
+    var when = q.fetched_at ? String(q.fetched_at).replace("T", " ").slice(0, 19) : "";
+    return '<span style="color:' + color + ';font-weight:600">' + fmtInt(q.total_balance) + '</span>' +
+      '<span class="muted"> / ' + fmtInt(q.total_quota) + '</span>' +
+      (pct === null ? "" : '<span class="muted">（剩 ' + pct + '%）</span>') +
+      '<div class="muted mono" style="font-size:11px">今日已用 ' + fmtInt(q.daily_tokens_used) + '</div>' +
+      (when ? '<div class="muted mono" style="font-size:11px">' + escapeHtml(when) + '</div>' : "");
+  }
+
+  function renderAccounts(accounts) {
+    var tbody = $("accountRows");
+    // 可用额度合计（所有账号的 total_balance 之和）
+    var quotaSum = 0, quotaTotal = 0, quotaSeen = false;
+    accounts.forEach(function (a) {
+      var q = a.quota || {};
+      if (q.total_quota || q.total_balance) {
+        quotaSeen = true;
+        quotaSum += Number(q.total_balance || 0);
+        quotaTotal += Number(q.total_quota || 0);
+      }
+    });
+    var el = $("sQuota");
+    if (el) {
+      if (quotaSeen) {
+        el.textContent = fmtInt(quotaSum) + " / " + fmtInt(quotaTotal);
+        el.title = "全部账号可用额度合计（点「签到」或「校验」可刷新）";
+      } else {
+        el.textContent = "—";
+      }
+    }
+    $("accountEmpty").classList.toggle("hidden", accounts.length > 0);
+    if (!accounts.length) { tbody.innerHTML = ""; return; }
+    var html = accounts.map(function (a) {
+      var modeText = a.mode === "apikey" ? "永久 AK/SK" : "OAuth 临时凭证";
+      var reason = a.reason || a.last_error || "";
+      var until = a.until ? String(a.until).replace("T", " ").slice(0, 19) : "";
+      var risk = a.risk_count ? "风控 " + a.risk_count + " 次" : "";
+      var conc = "并发 " + (a.active_concurrent || 0) + "/" + (a.max_concurrent || 0);
+      return '<tr>' +
+        '<td><strong>' + escapeHtml(a.nickname || a.name || a.uid) + '</strong>' +
+          '<div class="muted mono" style="font-size:11px">' + escapeHtml(a.uid) + '</div>' +
+          '<div class="muted" style="font-size:11px">' + escapeHtml(modeText) + ' · ' + escapeHtml(a.token_remaining || "") + '</div>' +
+        '</td>' +
+        '<td>' + quotaCell(a) + '</td>' +
+        '<td>' + checkinCell(a) + '</td>' +
+        '<td>' + statusBadge(a) +
+          '<div class="muted mono" style="font-size:11px">' + escapeHtml(conc) + (risk ? ' · ' + escapeHtml(risk) : '') + '</div>' +
+        '</td>' +
+        '<td><div>' + escapeHtml(reason) + '</div>' +
+          (until ? '<div class="muted mono" style="font-size:11px">冷却至 ' + escapeHtml(until) + '</div>' : '') +
+        '</td>' +
+        '<td><div class="row-actions">' +
+          '<button class="btn sm" data-act="checkin" data-uid="' + escapeHtml(a.uid) + '">签到</button>' +
+          '<button class="btn sm" data-act="credits" data-uid="' + escapeHtml(a.uid) + '">校验</button>' +
+          '<button class="btn sm" data-act="enable" data-uid="' + escapeHtml(a.uid) + '">启用</button>' +
+          '<button class="btn sm" data-act="disable" data-uid="' + escapeHtml(a.uid) + '">禁用</button>' +
+          '<button class="btn sm" data-act="clear" data-uid="' + escapeHtml(a.uid) + '">清冷却</button>' +
+          '<button class="btn sm danger" data-act="delete" data-uid="' + escapeHtml(a.uid) + '">删除</button>' +
+        '</div></td>' +
+      '</tr>';
+    }).join("");
+    tbody.innerHTML = html;
+  }
+
+  function renderModels(models) {
+    var box = $("modelList");
+    var select = $("testModel");
+    var previous = select.value;
+    if (!models.length) {
+      box.innerHTML = '<span class="muted">暂无可用模型（请检查账号与凭证）</span>';
+      select.innerHTML = "";
+      return;
+    }
+    box.innerHTML = models.map(function (m) {
+      return '<span class="chip">' + escapeHtml(m.id) + (m.benefit ? ' <b>福利</b>' : '') + '</span>';
+    }).join("");
+    select.innerHTML = models.map(function (m) {
+      return '<option value="' + escapeHtml(m.id) + '">' + escapeHtml(m.id) + (m.benefit ? "（福利）" : "") + '</option>';
+    }).join("");
+    if (previous) {
+      for (var i = 0; i < select.options.length; i++) {
+        if (select.options[i].value === previous) { select.value = previous; break; }
+      }
+    }
+  }
+
+  function loadOverview(silent) {
+    return api("/admin/api/overview").then(function (data) {
+      state.overview = data;
+      renderStats(data.stats || {}, (data.schedule || {}).watch || {});
+      renderAccounts(data.accounts || []);
+      renderModels(data.models || []);
+      $("accountHint").textContent = "共 " + ((data.accounts || []).length) + " 个账号";
+      $("subTitle").textContent = "账号池 · 签到及新手福利 · 模型 · 对话测试 · v" + (data.version || "");
+      if (!silent) { toast("已刷新"); }
+      return data;
+    }).catch(function (error) {
+      toast("加载总览失败：" + error.message, true);
+      throw error;
+    });
+  }
+
+  // --- 操作 ---
+
+  function runAction(path, body, label) {
+    var payload = body === undefined ? "{}" : JSON.stringify(body || {});
+    return api(path, { method: "POST", body: payload }).then(function (data) {
+      toast((data && data.message) || (label + "完成"), !(data && data.ok !== false));
+      return loadOverview(true).then(function () { return data; });
+    }).catch(function (error) {
+      toast(label + "失败：" + error.message, true);
+    });
+  }
+
+  function bindActions() {
+    // 「刷新」要真的刷新额度，不能只重取 overview。
+    // overview 里的 quota 是账号上的**缓存快照**，光重取它数字永远不变；
+    // 所以先让服务端去上游查一次（/admin/api/quota，带 10 秒地板防连点），
+    // 再重取 overview 把新数字渲染出来。
+    $("btnRefresh").onclick = function () {
+      var btn = $("btnRefresh");
+      if (btn.disabled) { return; }
+      btn.disabled = true;
+      var original = btn.textContent;
+      btn.textContent = "刷新中…";
+      api("/admin/api/quota", { method: "POST", body: "{}" })
+        .then(function (data) {
+          if (data && data.message) { toast(data.message, !(data.ok !== false)); }
+        })
+        .catch(function (error) {
+          toast("刷新额度失败: " + error.message, true);
+        })
+        .then(function () { return loadOverview(false); })
+        .catch(function () { /* loadOverview 自己会提示 */ })
+        .then(function () {
+          btn.disabled = false;
+          btn.textContent = original;
+        });
+    };
+    $("btnCredits").onclick = function () { runAction("/admin/api/credits", {}, "校验账号"); };
+    // 签到 = 领积分（/admin/api/checkin）；保活 = 只续期凭证（/admin/api/keepalive）
+    $("btnCheckin").onclick = function () { runAction("/admin/api/checkin", {}, "签到"); };
+    $("btnKeepalive").onclick = function () { runAction("/admin/api/keepalive", {}, "保活 Token"); };
+    $("btnReload").onclick = function () { runAction("/admin/api/reload", {}, "重载 auths"); };
+    $("btnLogout").onclick = function () { clearKey(); showLogin(); toast("已退出"); };
+    $("btnOauth").onclick = openOauthModal;
+
+    $("accountRows").addEventListener("click", function (event) {
+      var button = event.target.closest("button[data-act]");
+      if (!button) { return; }
+      var uid = button.getAttribute("data-uid");
+      var act = button.getAttribute("data-act");
+      if (act === "checkin") { runAction("/admin/api/checkin", { uid: uid }, "签到"); }
+      else if (act === "credits") { runAction("/admin/api/credits", { uid: uid }, "校验"); }
+      else if (act === "enable") { runAction("/admin/api/accounts/enable", { uid: uid }, "启用"); }
+      else if (act === "disable") { runAction("/admin/api/accounts/disable", { uid: uid, reason: "manual disable from panel" }, "禁用"); }
+      else if (act === "clear") { runAction("/admin/api/accounts/clear-cooldown", { uid: uid }, "清冷却"); }
+      else if (act === "delete") {
+        if (window.confirm("确定删除账号 " + uid + " 的凭证文件？此操作不可撤销。")) {
+          runAction("/admin/api/accounts/delete", { uid: uid }, "删除");
+        }
+      }
+    });
+
+    $("btnTest").onclick = runChatTest;
+  }
+
+  // --- OAuth ---
+
+  function stopPolling() {
+    if (state.pollTimer) { clearInterval(state.pollTimer); state.pollTimer = null; }
+  }
+
+  function setOauthStatus(text, kind) {
+    var el = $("oauthStatus");
+    el.textContent = text || "";
+    el.className = "status-line" + (kind ? " " + kind : "");
+  }
+
+  function openOauthModal() {
+    $("oauthModal").classList.remove("hidden");
+    $("oauthNextWrap").classList.add("hidden");
+    setOauthStatus("", "");
+  }
+  function closeOauthModal() {
+    $("oauthModal").classList.add("hidden");
+    stopPolling();
+  }
+
+  function startOauth() {
+    setOauthStatus("正在发起授权…", "");
+    api("/admin/api/oauth/start", { method: "POST", body: "{}" }).then(function (data) {
+      state.sessionId = data.session_id || "";
+      $("oauthUrl").textContent = data.auth_url || "";
+      $("oauthSessionHint").textContent = state.sessionId ? ("会话 " + state.sessionId.slice(0, 8) + "… · 15 分钟内有效") : "";
+      setOauthStatus(data.message || "请在浏览器打开授权链接", "ok");
+      startPolling();
+    }).catch(function (error) {
+      setOauthStatus("发起授权失败：" + error.message, "err");
+    });
+  }
+
+  function startPolling() {
+    stopPolling();
+    // 每 3 秒轮询一次；只有 portal 明确下发过 secret 时后端才会走 ticket 通道，
+    // 否则会一直 pending —— 这正是「浏览器在别的机器上」时需要用粘贴回调地址的原因。
+    state.pollTimer = setInterval(pollOauth, 3000);
+  }
+
+  function pollOauth() {
+    if (!state.sessionId) { return; }
+    api("/admin/api/oauth/poll", { method: "POST", body: JSON.stringify({ session_id: state.sessionId }) })
+      .then(function (data) {
+        if (data.status === "done") {
+          stopPolling();
+          setOauthStatus(data.message || "登录成功", "ok");
+          toast(data.message || "登录成功");
+          loadOverview(true);
+        } else if (data.status === "error") {
+          stopPolling();
+          setOauthStatus(data.message || "登录失败", "err");
+        } else {
+          setOauthStatus(data.message || "等待浏览器完成登录…", "");
+        }
+      })
+      .catch(function (error) {
+        stopPolling();
+        setOauthStatus("轮询失败：" + error.message, "err");
+      });
+  }
+
+  function importCallback() {
+    var url = $("oauthCallbackUrl").value.trim();
+    if (!state.sessionId) { setOauthStatus("请先点「发起授权」", "err"); return; }
+    if (!url) { setOauthStatus("请先粘贴回调地址", "err"); return; }
+    api("/admin/api/oauth/import-callback", {
+      method: "POST",
+      body: JSON.stringify({ session_id: state.sessionId, callback_url: url })
+    }).then(function (data) {
+      if (data.status === "done") {
+        stopPolling();
+        setOauthStatus(data.message || "登录成功", "ok");
+        toast(data.message || "登录成功");
+        $("oauthNextWrap").classList.add("hidden");
+        loadOverview(true);
+        return;
+      }
+      if (data.status === "continue" && data.next_url) {
+        $("oauthNextUrl").textContent = data.next_url;
+        $("oauthNextWrap").classList.remove("hidden");
+        setOauthStatus(data.message || "请继续打开下一步地址", "ok");
+        startPolling();
+        return;
+      }
+      setOauthStatus(data.message || "回调已提交", "");
+    }).catch(function (error) {
+      setOauthStatus("提交回调失败：" + error.message, "err");
+    });
+  }
+
+  function copyLink() {
+    var text = $("oauthUrl").textContent || "";
+    if (!text || text.indexOf("http") !== 0) { toast("还没有可复制的链接", true); return; }
+    var done = function () { toast("链接已复制"); };
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(text).then(done, function () { fallbackCopy(text, done); });
+    } else {
+      fallbackCopy(text, done);
+    }
+  }
+
+  function fallbackCopy(text, done) {
+    // 剪贴板 API 在非 https/内网环境下不可用，退化为「选中让用户自己按 Ctrl+C」
+    var area = document.createElement("textarea");
+    area.value = text;
+    area.style.position = "fixed";
+    area.style.opacity = "0";
+    document.body.appendChild(area);
+    area.select();
+    try { document.execCommand("copy"); done(); }
+    catch (e) { toast("复制失败，请手动选中链接复制", true); }
+    document.body.removeChild(area);
+  }
+
+  function bindOauth() {
+    $("btnOauthStart").onclick = startOauth;
+    $("btnOauthCopy").onclick = copyLink;
+    $("btnOauthOpen").onclick = function () {
+      var text = $("oauthUrl").textContent || "";
+      if (text.indexOf("http") === 0) { window.open(text, "_blank", "noopener"); }
+      else { toast("请先点「发起授权」", true); }
+    };
+    $("btnOauthOpenNext").onclick = function () {
+      var text = $("oauthNextUrl").textContent || "";
+      if (text.indexOf("http") === 0) { window.open(text, "_blank", "noopener"); }
+    };
+    $("btnOauthImport").onclick = importCallback;
+    $("btnOauthPoll").onclick = pollOauth;
+    $("oauthModalClose").onclick = closeOauthModal;
+    $("oauthModal").addEventListener("click", function (event) {
+      if (event.target === $("oauthModal")) { closeOauthModal(); }
+    });
+  }
+
+  // --- 对话测试 ---
+
+  function runChatTest() {
+    var model = $("testModel").value;
+    var prompt = $("testPrompt").value.trim();
+    var stream = $("testStream").checked;
+    var out = $("testOutput");
+    if (!model) { toast("没有可用模型", true); return; }
+    if (!prompt) { toast("请输入提问内容", true); return; }
+    out.textContent = "";
+    var payload = {
+      model: model,
+      messages: [{ role: "user", content: prompt }],
+      stream: !!stream
+    };
+    if (stream) { payload.stream_options = { include_usage: true }; }
+
+    fetch("/v1/chat/completions", {
+      method: "POST",
+      headers: { "Authorization": "Bearer " + state.key, "Content-Type": "application/json" },
+      body: JSON.stringify(payload)
+    }).then(function (response) {
+      if (response.status === 401) {
+        clearKey(); showLogin(); throw new Error("API Key 无效或已过期");
+      }
+      if (!response.ok) {
+        return response.text().then(function (text) {
+          throw new Error("HTTP " + response.status + " " + text.slice(0, 400));
+        });
+      }
+      if (!stream) {
+        return response.json().then(function (data) {
+          if (data.error) { throw new Error(data.error.message || "上游错误"); }
+          var choice = (data.choices || [{}])[0] || {};
+          var message = choice.message || {};
+          var text = message.content || "";
+          out.textContent = text;
+          if (data.usage) {
+            out.textContent += "\n\n[usage] prompt=" + data.usage.prompt_tokens +
+              " completion=" + data.usage.completion_tokens + " total=" + data.usage.total_tokens;
+          }
+          if (data.chat_id) { out.textContent += "\n[chat_id] " + data.chat_id; }
+        });
+      }
+      return readSse(response, out);
+    }).catch(function (error) {
+      out.innerHTML = '<span class="err">' + escapeHtml(error.message) + '</span>';
+      toast("对话测试失败：" + error.message, true);
+    });
+  }
+
+  function readSse(response, out) {
+    var reader = response.body.getReader();
+    var decoder = new TextDecoder("utf-8");
+    var buffer = "";
+    var usage = null;
+    function pump() {
+      return reader.read().then(function (result) {
+        if (result.done) {
+          if (usage) {
+            out.textContent += "\n\n[usage] prompt=" + usage.prompt_tokens +
+              " completion=" + usage.completion_tokens + " total=" + usage.total_tokens;
+          }
+          return;
+        }
+        buffer += decoder.decode(result.value, { stream: true });
+        var parts = buffer.split("\n\n");
+        buffer = parts.pop();
+        parts.forEach(function (block) {
+          block.split("\n").forEach(function (line) {
+            if (line.indexOf("data:") !== 0) { return; }
+            var raw = line.slice(5).trim();
+            if (raw === "[DONE]") { return; }
+            var chunk;
+            try { chunk = JSON.parse(raw); } catch (e) { return; }
+            if (chunk.usage) { usage = chunk.usage; }
+            var choice = (chunk.choices || [])[0];
+            if (!choice) { return; }
+            var delta = choice.delta || {};
+            if (typeof delta.reasoning_content === "string" && delta.reasoning_content) {
+              out.textContent += delta.reasoning_content;
+            }
+            if (typeof delta.content === "string" && delta.content) {
+              out.textContent += delta.content;
+            }
+            if (choice.finish_reason) {
+              out.textContent += "\n[finish_reason] " + choice.finish_reason;
+            }
+          });
+        });
+        return pump();
+      });
+    }
+    return pump();
+  }
+
+  // --- 登录 ---
+
+  function tryEnter(key) {
+    state.key = key;
+    return api("/admin/api/overview").then(function (data) {
+      saveKey(key);
+      showPanel();
+      state.overview = data;
+      renderStats(data.stats || {}, (data.schedule || {}).watch || {});
+      renderAccounts(data.accounts || []);
+      renderModels(data.models || []);
+      $("subTitle").textContent = "账号池 · 签到及新手福利 · 模型 · 对话测试 · v" + (data.version || "");
+      return true;
+    }).catch(function (error) {
+      clearKey();
+      showLogin();
+      throw error;
+    });
+  }
+
+  function init() {
+    $("baseUrl").textContent = location.origin + "/v1";
+    bindActions();
+    bindOauth();
+
+    $("btnLogin").onclick = function () {
+      var key = $("apiKeyInput").value.trim();
+      if (!key) { toast("请输入 API Key", true); return; }
+      tryEnter(key).then(function () { toast("已进入控制台"); })
+        .catch(function (error) { toast("API Key 无效：" + error.message, true); });
+    };
+    $("apiKeyInput").addEventListener("keydown", function (event) {
+      if (event.key === "Enter") { $("btnLogin").click(); }
+    });
+
+    var saved = readKey();
+    if (saved) {
+      $("apiKeyInput").value = saved;
+      tryEnter(saved).catch(function () { showLogin(); });
+    } else {
+      showLogin();
+    }
+  }
+
+  if (document.readyState === "loading") {
+    document.addEventListener("DOMContentLoaded", init);
+  } else {
+    init();
+  }
+})();
+</script>
+</body>
+</html>
